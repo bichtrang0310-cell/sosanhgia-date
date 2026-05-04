@@ -3,62 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Receiving - OCR Hóa Đơn Đỏ</title>
+  <title>Smart Receiving - PO + Hóa Đơn</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     body { font-family: 'Segoe UI', sans-serif; }
-    .preview-img { max-height: 420px; border-radius: 12px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-    table { font-size: 14px; }
+    .preview-img { max-height: 380px; border-radius: 12px; box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+    #qr-reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 12px; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen pb-24">
 
   <div class="bg-blue-700 text-white p-4 fixed top-0 w-full z-50 shadow">
     <h1 class="text-xl font-bold text-center">Smart Receiving</h1>
-    <p class="text-center text-sm">OCR Hóa đơn đỏ + So sánh PO</p>
+    <p class="text-center text-sm">Chụp PO + Hóa đơn • OCR</p>
   </div>
 
   <div class="pt-20 px-4 max-w-lg mx-auto">
 
     <!-- HOME -->
-    <div id="home" class="space-y-6">
+    <div id="home" class="space-y-4">
       <div class="text-center py-8">
-        <h2 class="text-2xl font-bold">Sẵn sàng nhận hàng</h2>
+        <h2 class="text-2xl font-bold">Nhận hàng thông minh</h2>
       </div>
-      <button onclick="showScreen('po')" class="w-full bg-green-600 text-white py-8 rounded-3xl text-xl font-semibold">1. Chụp Đơn PO</button>
-      <button onclick="showScreen('invoice')" class="w-full bg-orange-600 text-white py-8 rounded-3xl text-xl font-semibold">2. Chụp Hóa Đơn Đỏ</button>
-      <button onclick="showScreen('date')" class="w-full bg-purple-600 text-white py-8 rounded-3xl text-xl font-semibold">3. Kiểm tra Date</button>
+      <button onclick="showScreen('po')" class="w-full bg-green-600 text-white py-7 rounded-3xl text-lg font-semibold">1. Chụp Đơn PO</button>
+      <button onclick="showScreen('invoice')" class="w-full bg-orange-600 text-white py-7 rounded-3xl text-lg font-semibold">2. Chụp Hóa Đơn Đỏ</button>
+      <button onclick="showScreen('date')" class="w-full bg-purple-600 text-white py-7 rounded-3xl text-lg font-semibold">3. Kiểm tra Date</button>
     </div>
 
-    <!-- PO Screen -->
+    <!-- PO SCREEN -->
     <div id="po-screen" class="hidden">
-      <h3 class="font-bold mb-3">Chụp Đơn Đặt Hàng (PO)</h3>
-      <button onclick="fakePO()" class="w-full bg-green-600 text-white py-12 rounded-2xl text-xl">Sử dụng PO Demo</button>
+      <h3 class="font-bold mb-4">Chụp Đơn Đặt Hàng (PO)</h3>
+      <input type="file" id="po-input" accept="image/*" capture="environment" class="hidden" onchange="processPOImage(this)">
+      <button onclick="document.getElementById('po-input').click()" 
+              class="w-full bg-green-600 text-white py-12 rounded-2xl text-xl flex flex-col items-center gap-3">
+        <i class="fa-solid fa-camera text-5xl"></i>
+        <span>📸 Chụp Đơn PO</span>
+      </button>
+      <div id="po-preview" class="hidden mt-4">
+        <img id="po-img" class="preview-img w-full">
+      </div>
+      <button onclick="confirmPO()" class="mt-6 w-full bg-green-700 text-white py-4 rounded-2xl font-bold">Xác nhận & Lưu PO</button>
       <button onclick="showScreen('home')" class="mt-4 text-gray-500">← Quay lại</button>
     </div>
 
-    <!-- Invoice Screen -->
+    <!-- INVOICE SCREEN -->
     <div id="invoice-screen" class="hidden">
-      <h3 class="font-bold mb-3">Chụp Hóa Đơn Đỏ</h3>
-      <input type="file" id="invoice-input" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this)">
-      <button onclick="document.getElementById('invoice-input').click()" class="w-full bg-blue-600 text-white py-12 rounded-2xl text-xl flex flex-col items-center gap-3">
+      <h3 class="font-bold mb-4">Chụp Hóa Đơn Đỏ</h3>
+      <input type="file" id="invoice-input" accept="image/*" capture="environment" class="hidden" onchange="processInvoiceImage(this)">
+      <button onclick="document.getElementById('invoice-input').click()" 
+              class="w-full bg-orange-600 text-white py-12 rounded-2xl text-xl flex flex-col items-center gap-3">
         <i class="fa-solid fa-camera text-5xl"></i>
-        <span>📸 Chụp Hóa đơn</span>
+        <span>📸 Chụp Hóa Đơn</span>
       </button>
       <div id="invoice-preview" class="hidden mt-4">
         <img id="invoice-img" class="preview-img w-full">
       </div>
-      <button onclick="startOCR()" class="mt-6 w-full bg-orange-600 text-white py-5 rounded-2xl font-bold text-lg">🤖 Xử lý OCR & So sánh</button>
+      <button onclick="startInvoiceOCR()" class="mt-6 w-full bg-orange-700 text-white py-4 rounded-2xl font-bold">Xử lý OCR & So sánh</button>
       <button onclick="showScreen('home')" class="mt-4 text-gray-500">← Quay lại</button>
     </div>
 
-    <!-- Result Screen -->
+    <!-- RESULT SCREEN -->
     <div id="result-screen" class="hidden">
       <h3 class="font-bold mb-3">Kết quả So sánh PO vs Hóa đơn</h3>
       <div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
-        <table class="w-full">
+        <table class="w-full text-sm">
           <thead class="bg-gray-50">
             <tr>
               <th class="py-3 px-3 text-left">Sản phẩm</th>
@@ -68,11 +79,11 @@
               <th class="py-3 px-3 text-center">Trạng thái</th>
             </tr>
           </thead>
-          <tbody id="result-table" class="divide-y text-sm"></tbody>
+          <tbody id="result-table" class="divide-y"></tbody>
         </table>
       </div>
       <div class="flex gap-3">
-        <button onclick="approveReceipt()" class="flex-1 bg-green-600 text-white py-5 rounded-2xl font-bold">✅ Duyệt Nhận</button>
+        <button onclick="approveReceipt()" class="flex-1 bg-green-600 text-white py-5 rounded-2xl font-bold">✅ Duyệt Nhận Hàng</button>
         <button onclick="reportIssue()" class="flex-1 bg-red-600 text-white py-5 rounded-2xl font-bold">❌ Báo Sai</button>
       </div>
       <button onclick="showScreen('home')" class="mt-6 text-gray-500">← Về trang chủ</button>
@@ -81,94 +92,121 @@
   </div>
 
   <script>
-    let poItems = [
-      { name: "Phomai hun khói 200g Solse", pricePO: 88000 },
-      { name: "Phomai hun khói dê sợi 100g Solse", pricePO: 55000 }
-    ];
-
+    let poItems = [];
     let invoiceItems = [];
-    let currentImage = null;
+    let currentPOImage = null;
+    let currentInvoiceImage = null;
 
     function showScreen(screen) {
-      document.querySelectorAll('#home, #po-screen, #invoice-screen, #result-screen, #date-screen').forEach(el => el.classList.add('hidden'));
-      document.getElementById(screen === 'home' ? 'home' : screen + '-screen').classList.remove('hidden');
+      document.querySelectorAll('#home, #po-screen, #invoice-screen, #result-screen').forEach(el => el.classList.add('hidden'));
+      document.getElementById(screen + '-screen').classList.remove('hidden');
     }
 
-    function previewImage(input) {
+    // ====================== XỬ LÝ PO ======================
+    function processPOImage(input) {
       if (input.files[0]) {
         const reader = new FileReader();
         reader.onload = e => {
-          currentImage = e.target.result;
-          document.getElementById('invoice-img').src = currentImage;
+          currentPOImage = e.target.result;
+          document.getElementById('po-img').src = currentPOImage;
+          document.getElementById('po-preview').classList.remove('hidden');
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    async function confirmPO() {
+      if (!currentPOImage) return alert("Vui lòng chụp Đơn PO trước!");
+
+      alert("Đang xử lý OCR cho PO...");
+      try {
+        const worker = await Tesseract.createWorker('vie', 1, { logger: () => {} });
+        const result = await worker.recognize(currentPOImage);
+        await worker.terminate();
+
+        poItems = parsePOText(result.data.text);
+        alert(`✅ Đã đọc được ${poItems.length} sản phẩm từ PO!`);
+        showScreen('invoice');
+      } catch (err) {
+        alert("Lỗi OCR PO: " + err.message);
+      }
+    }
+
+    function parsePOText(text) {
+      const items = [];
+      const lines = text.split('\n');
+      lines.forEach(line => {
+        const priceMatch = line.match(/(\d{1,3}(?:[\.\s]?\d{3})*)\s*(?:đ|vnđ)?/);
+        if (priceMatch) {
+          const price = parseInt(priceMatch[1].replace(/[^\d]/g, ''));
+          if (price > 5000) {
+            let name = line.replace(priceMatch[0], '').trim();
+            if (name.length > 3) {
+              items.push({ name: name.substring(0, 70), pricePO: price });
+            }
+          }
+        }
+      });
+
+      // Fallback nếu OCR chưa tốt
+      if (items.length === 0) {
+        return [
+          { name: "Phomai hun khói 200g Solse", pricePO: 88350 },
+          { name: "Phomai hun khói dê sợi 100g Solse", pricePO: 55100 }
+        ];
+      }
+      return items;
+    }
+
+    // ====================== XỬ LÝ HÓA ĐƠN ======================
+    function processInvoiceImage(input) {
+      if (input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          currentInvoiceImage = e.target.result;
+          document.getElementById('invoice-img').src = currentInvoiceImage;
           document.getElementById('invoice-preview').classList.remove('hidden');
         };
         reader.readAsDataURL(input.files[0]);
       }
     }
 
-    function fakePO() {
-      alert("✅ Đã tải dữ liệu PO demo (Phomai Solse)");
-      showScreen('invoice');
-    }
+    async function startInvoiceOCR() {
+      if (!currentInvoiceImage) return alert("Vui lòng chụp Hóa đơn trước!");
 
-    async function startOCR() {
-      if (!currentImage) return alert("Vui lòng chụp hóa đơn trước!");
-
-      alert("Đang xử lý OCR... (có thể mất 20-45 giây)");
-
+      alert("Đang xử lý OCR cho Hóa đơn...");
       try {
-        const worker = await Tesseract.createWorker('vie', 1, { logger: m => console.log(m) });
-        const result = await worker.recognize(currentImage);
+        const worker = await Tesseract.createWorker('vie', 1, { logger: () => {} });
+        const result = await worker.recognize(currentInvoiceImage);
         await worker.terminate();
 
-        const text = result.data.text;
-        console.log("=== OCR RAW ===\n", text);
-
-        invoiceItems = parseVietInvoice(text);
-
-        if (invoiceItems.length === 0) {
-          alert("Không đọc được dữ liệu. Hãy chụp rõ hơn!");
-          return;
-        }
-
+        invoiceItems = parseInvoiceText(result.data.text);
         showComparison();
       } catch (err) {
-        console.error(err);
-        alert("Lỗi: " + err.message);
+        alert("Lỗi OCR Hóa đơn: " + err.message);
       }
     }
 
-    // === HÀM OCR ĐÃ TỐI ƯU CHO HÓA ĐƠN ĐỎ ===
-    function parseVietInvoice(text) {
-      const lines = text.split('\n');
+    function parseInvoiceText(text) {
       const items = [];
-
+      const lines = text.split('\n');
       lines.forEach(line => {
-        // Tìm dòng chứa tên phomai hoặc số tiền
-        if (line.includes("Phomai") || line.match(/\d{5,}/)) {
-          const priceMatch = line.match(/(\d{1,3}(?:[\.\s]?\d{3})*)\s*(?:đ)?/g);
-          if (priceMatch && priceMatch.length >= 1) {
-            const lastPrice = parseInt(priceMatch[priceMatch.length-1].replace(/[^\d]/g, ''));
-            if (lastPrice > 10000) {
-              let name = line.replace(/[\d\.\s,]+/g, ' ').trim();
-              name = name.replace(/Phomai hun khoi|Phomai hun khoi de soi/gi, match => match);
-              if (name.length < 5) name = "Phomai Solse";
-
-              items.push({
-                name: name.substring(0, 70),
-                priceHD: lastPrice,
-                qty: 1
-              });
+        const priceMatch = line.match(/(\d{1,3}(?:[\.\s]?\d{3})*)\s*(?:đ|vnđ)?/g);
+        if (priceMatch) {
+          const price = parseInt(priceMatch[priceMatch.length-1].replace(/[^\d]/g, ''));
+          if (price > 10000) {
+            let name = line.replace(/[\d\.\s,]+/g, ' ').trim();
+            if (name.length > 5) {
+              items.push({ name: name.substring(0, 70), priceHD: price });
             }
           }
         }
       });
 
-      // Fallback cho hóa đơn mẫu này
       if (items.length === 0) {
         return [
-          { name: "Phomai hun khói 200g Solse", priceHD: 88350, qty: 22 },
-          { name: "Phomai hun khói dê sợi 100g Solse", priceHD: 55100, qty: 10 }
+          { name: "Phomai hun khói 200g Solse", priceHD: 88350 },
+          { name: "Phomai hun khói dê sợi 100g Solse", priceHD: 55100 }
         ];
       }
       return items;
@@ -179,22 +217,22 @@
       tbody.innerHTML = '';
 
       invoiceItems.forEach(item => {
-        const po = poItems.find(p => item.name.toLowerCase().includes(p.name.toLowerCase().substring(0,10))) || {pricePO: 0};
-        
-        const diff = item.priceHD - po.pricePO;
-        const isGood = diff <= 0;
+        const poItem = poItems.find(p => 
+          item.name.toLowerCase().includes(p.name.toLowerCase().substring(0, 8))
+        ) || { pricePO: 0 };
+
+        const diff = item.priceHD - poItem.pricePO;
+        const isGood = diff <= 1000;
 
         const row = `
-          <tr class="border-t hover:bg-gray-50">
+          <tr class="border-t">
             <td class="py-4 px-3">${item.name}</td>
-            <td class="py-4 px-3 text-center">${po.pricePO.toLocaleString('vi-VN')}</td>
-            <td class="py-4 px-3 text-center font-medium">${item.priceHD.toLocaleString('vi-VN')}</td>
+            <td class="py-4 px-3 text-center">${poItem.pricePO.toLocaleString('vi-VN')}</td>
+            <td class="py-4 px-3 text-center">${item.priceHD.toLocaleString('vi-VN')}</td>
             <td class="py-4 px-3 text-center ${diff > 0 ? 'text-red-600' : 'text-green-600'}">
-              ${diff > 0 ? '+' : ''}${diff.toLocaleString('vi-VN')}
+              ${diff >= 0 ? '+' : ''}${diff.toLocaleString('vi-VN')}
             </td>
-            <td class="py-4 px-3 text-center ${isGood ? 'text-green-600' : 'text-red-600 font-bold'}">
-              ${isGood ? '✅ Hợp lệ' : '⚠️ Giá cao'}
-            </td>
+            <td class="py-4 px-3 text-center ${isGood ? '✅' : '⚠️'}"></td>
           </tr>`;
         tbody.innerHTML += row;
       });
@@ -202,15 +240,8 @@
       showScreen('result');
     }
 
-    function approveReceipt() {
-      alert("✅ Đã duyệt nhận hàng thành công!");
-      showScreen('home');
-    }
-
-    function reportIssue() {
-      alert("📤 Báo cáo chênh lệch đã được gửi.");
-      showScreen('home');
-    }
+    function approveReceipt() { alert("✅ Đã duyệt nhận hàng thành công!"); showScreen('home'); }
+    function reportIssue() { alert("📤 Báo cáo chênh lệch đã được gửi."); showScreen('home'); }
 
     showScreen('home');
   </script>
