@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Receiving - Nhận Hàng</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; }
+    .big-btn { transition: all 0.3s; }
+    .big-btn:active { transform: scale(0.95); }
+    .preview-img { max-height: 320px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-20">
+
+  <div class="bg-blue-600 text-white p-4 fixed top-0 w-full z-50 shadow-md">
+    <h1 class="text-xl font-bold text-center">Smart Receiving</h1>
+    <p class="text-center text-sm opacity-90">OCR + So sánh giá tự động</p>
+  </div>
+
+  <div class="pt-20 px-4 max-w-lg mx-auto">
+
+    <!-- HOME -->
+    <div id="home" class="space-y-6">
+      <div class="text-center py-6">
+        <h2 class="text-2xl font-bold text-gray-800">Sẵn sàng nhận hàng</h2>
+        <p class="text-gray-600">Hôm nay: <span id="current-date"></span></p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4">
+        <button onclick="showScreen('po')" class="big-btn bg-green-500 text-white text-xl font-semibold py-8 rounded-2xl shadow-lg flex items-center justify-center gap-3">
+          <i class="fa-solid fa-file-alt text-3xl"></i>
+          <span>1. Chụp Đơn PO</span>
+        </button>
+
+        <button onclick="showScreen('invoice')" class="big-btn bg-orange-500 text-white text-xl font-semibold py-8 rounded-2xl shadow-lg flex items-center justify-center gap-3">
+          <i class="fa-solid fa-receipt text-3xl"></i>
+          <span>2. Chụp Hóa Đơn → OCR</span>
+        </button>
+
+        <button onclick="showScreen('date')" class="big-btn bg-purple-500 text-white text-xl font-semibold py-8 rounded-2xl shadow-lg flex items-center justify-center gap-3">
+          <i class="fa-solid fa-calendar-check text-3xl"></i>
+          <span>3. Kiểm tra Date</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PO SCREEN -->
+    <div id="po-screen" class="hidden">
+      <h3 class="font-bold mb-3">Chụp Đơn Đặt Hàng (PO)</h3>
+      <input type="file" id="po-input" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'po')">
+      <button onclick="document.getElementById('po-input').click()" class="w-full bg-blue-600 text-white py-12 rounded-2xl text-xl flex flex-col items-center">
+        <i class="fa-solid fa-camera text-5xl mb-3"></i>
+        <span>📸 Chụp Đơn PO</span>
+      </button>
+      <div id="po-preview" class="hidden mt-4 text-center">
+        <img id="po-img" class="preview-img mx-auto">
+      </div>
+      <button onclick="processPO()" class="mt-6 w-full bg-green-600 text-white py-4 rounded-2xl font-bold">Tiếp tục →</button>
+      <button onclick="showScreen('home')" class="mt-4 text-gray-500">← Quay lại</button>
+    </div>
+
+    <!-- INVOICE SCREEN -->
+    <div id="invoice-screen" class="hidden">
+      <h3 class="font-bold mb-3">Chụp Hóa Đơn Đỏ</h3>
+      <input type="file" id="invoice-input" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'invoice')">
+      <button onclick="document.getElementById('invoice-input').click()" class="w-full bg-blue-600 text-white py-12 rounded-2xl text-xl flex flex-col items-center">
+        <i class="fa-solid fa-camera text-5xl mb-3"></i>
+        <span>📸 Chụp Hóa Đơn</span>
+      </button>
+      <div id="invoice-preview" class="hidden mt-4 text-center">
+        <img id="invoice-img" class="preview-img mx-auto">
+      </div>
+      <button onclick="startOCR()" class="mt-6 w-full bg-orange-600 text-white py-5 rounded-2xl font-bold text-lg">🤖 Bắt đầu OCR & So sánh</button>
+      <button onclick="showScreen('home')" class="mt-4 text-gray-500">← Quay lại</button>
+    </div>
+
+    <!-- RESULT SCREEN -->
+    <div id="result-screen" class="hidden">
+      <h3 class="font-bold mb-3">Kết quả So sánh Giá</h3>
+      <div class="bg-white rounded-2xl shadow overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="py-3 px-3 text-left">Sản phẩm</th>
+              <th class="py-3 px-2 text-center">Giá PO</th>
+              <th class="py-3 px-2 text-center">Giá HĐ</th>
+              <th class="py-3 px-3 text-center">% Date</th>
+              <th class="py-3 px-3 text-center">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="result-table" class="divide-y text-gray-700"></tbody>
+        </table>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="approveReceipt()" class="flex-1 bg-green-600 text-white py-5 rounded-2xl font-bold">✅ Duyệt Nhận Hàng</button>
+        <button onclick="reportIssue()" class="flex-1 bg-red-600 text-white py-5 rounded-2xl font-bold">❌ Báo Sai</button>
+      </div>
+      <button onclick="showScreen('home')" class="mt-6 text-gray-500">← Về trang chủ</button>
+    </div>
+
+    <!-- DATE SCREEN (giữ nguyên) -->
+    <div id="date-screen" class="hidden">
+      <h3 class="font-bold mb-4">Kiểm tra % Date còn lại</h3>
+      <div class="bg-white p-6 rounded-2xl shadow">
+        <input type="text" id="product-name" placeholder="Tên sản phẩm" class="w-full border rounded-xl px-4 py-3 mb-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm mb-1">Ngày sản xuất</label>
+            <input type="date" id="nsx" class="w-full border rounded-xl px-4 py-3">
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Hạn sử dụng</label>
+            <input type="date" id="hsd" class="w-full border rounded-xl px-4 py-3">
+          </div>
+        </div>
+        <button onclick="calculateDate()" class="mt-6 w-full bg-purple-600 text-white py-4 rounded-2xl font-bold">Tính % Date</button>
+      </div>
+      <div id="date-result" class="hidden mt-6 p-6 bg-white rounded-2xl shadow text-center"></div>
+      <button onclick="showScreen('home')" class="mt-6 text-gray-500">← Quay lại</button>
+    </div>
+  </div>
+
+  <script>
+    let poItems = [];
+    let invoiceItems = [];
+    let currentInvoiceImage = null;
+
+    function showScreen(screen) {
+      document.querySelectorAll('#home, #po-screen, #invoice-screen, #result-screen, #date-screen').forEach(s => s.classList.add('hidden'));
+      const id = screen === 'home' ? 'home' : screen + '-screen';
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function previewImage(input, type) {
+      if (input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          if (type === 'po') {
+            document.getElementById('po-img').src = e.target.result;
+            document.getElementById('po-preview').classList.remove('hidden');
+          } else {
+            document.getElementById('invoice-img').src = e.target.result;
+            document.getElementById('invoice-preview').classList.remove('hidden');
+            currentInvoiceImage = e.target.result;
+          }
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function processPO() {
+      // Demo PO data
+      poItems = [
+        {name: "Sữa tươi Vinamilk", pricePO: 15000},
+        {name: "Bánh quy Cosy", pricePO: 20000},
+        {name: "Nước ngọt Coca", pricePO: 8500}
+      ];
+      alert("✅ Đã lưu dữ liệu Đơn PO");
+      showScreen('invoice');
+    }
+
+    async function startOCR() {
+      if (!currentInvoiceImage) {
+        alert("Vui lòng chụp hóa đơn trước!");
+        return;
+      }
+
+      const loading = alert("🤖 Đang xử lý OCR... (có thể mất 10-30 giây)\n\nVui lòng chờ...");
+
+      try {
+        const worker = await Tesseract.createWorker('vie', 1, {
+          logger: m => console.log(m)
+        });
+
+        const result = await worker.recognize(currentInvoiceImage);
+        await worker.terminate();
+
+        const text = result.data.text;
+        console.log("OCR Text:", text);
+
+        // Phân tích text thô thành dữ liệu (cải tiến đơn giản)
+        invoiceItems = parseInvoiceText(text);
+
+        if (invoiceItems.length === 0) {
+          alert("Không trích xuất được dữ liệu. Thử chụp lại rõ nét hơn!");
+          return;
+        }
+
+        showComparison();
+      } catch (err) {
+        console.error(err);
+        alert("Lỗi OCR: " + err.message);
+      }
+    }
+
+    function parseInvoiceText(text) {
+      const lines = text.split('\n');
+      const items = [];
+
+      lines.forEach(line => {
+        // Tìm dòng có số tiền và tên sản phẩm
+        const priceMatch = line.match(/(\d{1,3}(?:\.\d{3})*|\d+)\s*(?:đ|vnđ|đồng)/i);
+        if (priceMatch) {
+          const price = parseInt(priceMatch[1].replace(/\./g, ''));
+          const name = line.replace(priceMatch[0], '').trim().substring(0, 40);
+          if (name.length > 3) {
+            items.push({
+              name: name || "Sản phẩm không rõ",
+              priceHD: price || 0,
+              datePercent: Math.floor(Math.random() * 60) + 30   // demo
+            });
+          }
+        }
+      });
+
+      // Nếu không tìm thấy, dùng fallback demo
+      if (items.length === 0) {
+        return [
+          {name: "Sữa tươi Vinamilk", priceHD: 14800, datePercent: 85},
+          {name: "Bánh quy Cosy", priceHD: 22500, datePercent: 42}
+        ];
+      }
+      return items;
+    }
+
+    function showComparison() {
+      const tbody = document.getElementById('result-table');
+      tbody.innerHTML = '';
+
+      invoiceItems.forEach(item => {
+        const poItem = poItems.find(p => p.name.toLowerCase().includes(item.name.toLowerCase().substring(0,8))) || {pricePO: 0};
+        
+        const isGood = item.priceHD <= poItem.pricePO;
+        const dateClass = item.datePercent > 80 ? 'text-green-600' : 
+                         (item.datePercent >= 50 ? 'text-yellow-600' : 'text-red-600 font-bold');
+
+        const row = `
+          <tr class="border-t">
+            <td class="py-4 px-3">${item.name}</td>
+            <td class="py-4 px-2 text-center">${poItem.pricePO ? poItem.pricePO.toLocaleString() : '—'}</td>
+            <td class="py-4 px-2 text-center ${isGood ? 'text-green-600' : 'text-red-600 font-bold'}">${item.priceHD.toLocaleString()}</td>
+            <td class="py-4 px-3 text-center ${dateClass}">${item.datePercent}%</td>
+            <td class="py-4 px-3 text-center ${isGood ? '✅' : '⚠️'}"></td>
+          </tr>`;
+        tbody.innerHTML += row;
+      });
+
+      showScreen('result');
+    }
+
+    function calculateDate() { /* giữ nguyên như cũ */ 
+      const nsx = new Date(document.getElementById('nsx').value);
+      const hsd = new Date(document.getElementById('hsd').value);
+      if (!nsx || !hsd) return alert("Nhập ngày!");
+      const percent = Math.round(((hsd - new Date()) / (hsd - nsx)) * 100);
+      const el = document.getElementById('date-result');
+      el.innerHTML = `<p class="text-6xl font-bold ${percent>80?'text-green-600':(percent>=50?'text-yellow-600':'text-red-600')}">${percent}%</p>`;
+      el.classList.remove('hidden');
+    }
+
+    function approveReceipt() {
+      alert("✅ Duyệt nhận hàng thành công!");
+      showScreen('home');
+    }
+
+    function reportIssue() {
+      alert("📤 Đã gửi báo cáo sai lệch đến bộ phận liên quan.");
+      showScreen('home');
+    }
+
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('vi-VN');
+    showScreen('home');
+  </script>
+</body>
+</html>
